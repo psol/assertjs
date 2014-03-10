@@ -1,0 +1,124 @@
+<html>
+<head>
+    <title>Simple run</title>
+    <script type="text/javascript">
+        function assert1(specifications) {
+            "use strict";
+            var failed = 0;
+
+            // need to return objects so we can chain the calls (e.g. number().or.string())
+            function number(data) {
+                if(typeof data !== "number")
+                    failed++;
+            }
+            function equal(value) {
+                if(value !== result)
+                    failed++;
+            }
+
+            specifications.pre({ number: number });
+            if(failed > 0)
+                throw "Pre-condition failed 1";
+            var result = specifications.body();
+            specifications.post({ equal: equal });
+            if(failed > 0)
+                throw "Post-condition failed 1";
+            return result;
+        }
+
+        // benefits: parameters are available to pre/post but some names (type, result) are "reserved"
+        // meaning that they could overwrite the parameter in pre/post if one is not careful (obviously you can always
+        // change the parameter name but there's a risk)
+        // however there are many opportunities for errors when writing this: what if you forget the return statement
+        // before assert1(), what if you write code outside of the assert1 object
+        // this style does not promote storing the pre/post in a separate file (not that I necessarily think it's
+        // a good idea but this remove the option)
+        function add1(a, b) {
+            "use strict";
+            return assert1({
+                pre: function(type) {
+                    type.number(a);
+                    type.number(b);
+                },
+                body: function() {
+                    return a + b;
+                },
+                post: function(result) {
+                    result.equal(a + b);
+                }
+            })
+        }
+    </script>
+
+    <script type="text/javascript">
+        function assert2(body, specifications) {
+            "use strict";
+            // must improve the regular expressions, they are too specific for my coding style (e.g. spaces)
+            var matches = body.toString().match(/^function [a-zA-Z0-9_]*\(([^\)]*)\)/m),
+                names = matches[1].split(/, ?/);
+            return function() {
+                var failed = 0,
+                    parameters = [],
+                    args = {};
+                for(var i = 0;i < arguments.length;i++) {
+                    parameters.push(arguments[i]);
+                    args[names[i]] = arguments[i];
+                }
+
+                function string(data) {
+                    if(typeof data !== "string")
+                        failed++;
+                }
+                function equal(value) {
+                    if(value !== result)
+                        failed++;
+                }
+
+                args.string = string;
+                specifications.pre(args);
+                var result = body.apply(this, parameters);
+                if(failed > 0)
+                    throw "Pre-condition failed 2";
+                specifications.post(args, { equal: equal });
+                if(failed > 0)
+                    throw "Post-condition failed 2";
+                return result;
+            };
+        }
+
+        function add2(a, b) {
+            "use strict";
+            return a + b;
+        }
+
+        // benefits: it's possible to declare the pre/post condition in a separate file, which will be more familiar
+        // to someone approaching this from the angle of unit tests
+        // no risk of name collision but writing the tests if a mouthful (args.a) and it's not properly highlighted
+        // by some editors which do not recognize the properties (WebStorm underlines them as errors)
+        add2 = assert2(add2, {
+            pre: function(args) {
+                args.string(args.a);
+                args.string(args.b);
+            },
+            post: function(args, result) {
+                result.equal(args.a + args.b);
+            }
+        });
+    </script>
+
+    <script type="text/javascript">
+        // try changing these to see the pre-conditions failing (e.g. add1("a", 6)
+        // to see the post-conditions failing, change the function definition (e.g. return a - b)
+        try {
+            alert(add1(5, 6));
+            alert(add2("5", "6"));
+        }
+        catch(e) {
+            alert(e);
+        }
+    </script>
+</head>
+<body>
+    <p>This is just to goof around to see what sort of API seem most friendly to work with</p>
+</body>
+</html>
