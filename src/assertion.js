@@ -44,15 +44,17 @@ var assertjs = assertjs || {};
                 MakeError = AssertError;
         }
 
-        this.report = function(id, pass, value, against, description)
+        this.report = function(id, pass, value, against, name)
         {
-            description = description || describe(id, pass, value, against);
+            name = name || "";
+            var description = name + ": " + describe(id, pass, value, against);
             reports.push(
                 {
                     id: id,
                     pass: pass,
                     value: value,
                     against: against,
+                    name: name,
                     description: description
                 }
             );
@@ -71,7 +73,7 @@ var assertjs = assertjs || {};
             for(var i = 0, len = reports.length;i < len;i++)
             {
                 current = reports[i];
-                callback.call(thisArg, current.id, current.pass, current.value, current.against, current.description, i);
+                callback.call(thisArg, current.id, current.pass, current.value, current.against, current.name, current.description, i);
             }
         };
 
@@ -157,6 +159,12 @@ var assertjs = assertjs || {};
         }
     };
 
+    // need to beef this up
+    function clone(value)
+    {
+        return value;
+    }
+
     function Assertion(messenger, value, inverted, description)
     {
         description = description || "";
@@ -178,60 +186,48 @@ var assertjs = assertjs || {};
         for(var id in comparators)
             if(comparators.hasOwnProperty(id))
                 this[id] = expose(id, comparators[id]);
-    }
 
-    // need to beef this up
-    function clone(value)
-    {
-        return value;
+        if(!inverted)
+            this.not = new Assertion(messenger, value, true, description);
+
+        this.value = clone(value);
     }
 
     function pre(body, specifications)
     {
         return function()
         {
-            var args = [],
+            var args = {},
                 messenger = new Messenger("precondition"),
-                wrapper =
+                // must improve the regex, it is too specific for my coding style (e.g. spaces)
+                matches = body.toString().match(/^function [a-zA-Z0-9_]*\(([^\)]*)\)/m),
+                names = matches[1].split(/, ?/);
+            for(var i = 0, len = names.length;i < len;i++)
+                args[names[i]] = new Assertion(messenger, clone(arguments[i]), false, names[i]);
+            var wrapper =
             {
                 enforce: function(description, value)
                 {
-                    if(arguments.length === 1)
+                    if(arguments.length === 0)
+                        throw new TypeError("a value is required")
+                    else if(arguments.length === 1)
                     {
                         value = description;
                         description = undefined;
                     }
-                    var result = new Assertion(messenger, value, false, description);
-                    result.not = new Assertion(messenger, value, true, description);
-                    return result;
+                    return new Assertion(messenger, value, false, description);
                 }
             };
 
-            for(var i = 0, len = arguments.length;i < len;i++)
-                args[i] = clone(arguments[i]);
-            specifications.apply(this, args);
+            specifications.call(wrapper, args);
             if(messenger.allPassed())
-                body.apply(this, arguments);
+                return body.apply(this, arguments);
         }
     }
 
     this.core = this.core || {};
 
-    this.core.Messenger = Messenger;
-    this.core.Assertion = Assertion;
-
     this.core.AssertError = AssertError;
     this.core.PreconditionError = PreconditionError;
     this.pre = pre;
 }).apply(assertjs);
-
-var messenger = new assertjs.core.Messenger("precondition");
-
-function verify(value, description)
-{
-    var assertion = new assertjs.core.Assertion(messenger, value, false),
-        not = new assertjs.core.Assertion(messenger, value, true);
-    assertion.not = not;
-    not.not = assertion;
-    return assertion;
-}

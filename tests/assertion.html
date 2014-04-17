@@ -15,38 +15,43 @@
 <body>
     <table id="result"></table>
     <script type="text/javascript">
+        function add(a, b)
+        {
+            return a + b;
+        }
+
+        add = assertjs.pre(add, function(args)
+        {
+            // just for testing...
+            args.a.exists();
+            args.b.exists();
+            this.enforce("sum of argument must be greater than 2", args.a.value + args.b.value).moreThan(2);
+            args.a.lessThan(4);
+            args.b.not.equals(10);
+        });
+
         var tests =
         [
-            "verify(5).equals(5)",
-            "verify(5).not.equals(5)",
-            "verify(5).not.equals(4)",
-            "verify(5).equals(4)",
-            "verify(5).truthy()",
-            "verify(5).not.falsy()",
-            "verify(5).not.nulled()",
-            "verify(5).exists()",
+            "add(2, 3)",
+            "add(2, 10)",
+            "add(10, 2)",
+            "add(5)",
+            "add(1, 1)",
+            "add(1, 5)",
         ];
 
         for(var i = 0;i < tests.length;i++)
             try
             {
-                eval(tests[i]);
+                var result = eval(tests[i]),
+                    line = "<tr class='pass''><td>" + tests[i] + "</td><td>" + result + "</td></tr>";
+                $("#result").append(line);
             }
             catch(e)
             {
-                console.log(e);
-                console.log(e instanceof assertjs.core.AssertError);
+                var line = "<tr class='fail''><td>" + tests[i] + "</td><td>" + e.message + "</td></tr>";
+                $("#result").append(line);
             }
-
-        messenger.replay(function(id, pass, value, against, description, i)
-        {
-            var line = "<tr class='";
-            line += pass ? "pass" : "fail";
-            line += "'><td>" + tests[i] + "</td><td>" + id + "</td><td>" + pass + "</td></tr>";
-            $("#result").append(line);
-        });
-
-        $("#result").append("<tr><td colspan='3'>failed: " + messenger.countFailed() + "</td></tr>");
     </script>
 </body>
 </html>
