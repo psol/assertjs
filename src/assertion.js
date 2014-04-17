@@ -1,0 +1,237 @@
+var assertjs = assertjs || {};
+
+(function()
+{
+    "use strict";
+    function AssertError(message)
+    {
+        this.name = "AssertError";
+        this.message = message;
+    }
+
+    function PreconditionError(message)
+    {
+        this.name = "PreconditionError";
+        this.message = message;
+    }
+    PreconditionError.prototype = new AssertError("");
+    PreconditionError.prototype.constructor = PreconditionError;
+
+    function describe(id, pass, value, against)
+    {
+        var result = id;
+        result += "(";
+        result += value;
+        if(against !== undefined)
+        {
+            result += ", ";
+            result += against;
+        }
+        result += ")"
+        return result;
+    }
+
+    function Messenger(throwError)
+    {
+        var reports = [],
+            failed = 0,
+            MakeError = false;
+        if(arguments.length > 0 && throwError)
+        {
+            if(throwError === "precondition")
+                MakeError = PreconditionError;
+            else
+                MakeError = AssertError;
+        }
+
+        this.report = function(id, pass, value, against, description)
+        {
+            description = description || describe(id, pass, value, against);
+            reports.push(
+                {
+                    id: id,
+                    pass: pass,
+                    value: value,
+                    against: against,
+                    description: description
+                }
+            );
+            if(!pass)
+            {
+                failed++;
+                if(MakeError)
+                   throw new MakeError(description);
+            }
+        };
+
+        this.replay = function(callback, thisArg)
+        {
+            thisArg = thisArg || this;
+            var current;
+            for(var i = 0, len = reports.length;i < len;i++)
+            {
+                current = reports[i];
+                callback.call(thisArg, current.id, current.pass, current.value, current.against, current.description, i);
+            }
+        };
+
+        this.count = function()
+        {
+            return reports.length;
+        };
+
+        this.countFailed = function()
+        {
+            return failed;
+        }
+    }
+
+    Messenger.prototype.empty = function()
+    {
+        return this.count() < 1;
+    };
+
+    Messenger.prototype.allPassed = function()
+    {
+        return this.countFailed() < 1;
+    };
+
+    Messenger.prototype.someFailed = function()
+    {
+        return this.countFailed() > 0;
+    };
+
+    Messenger.prototype.asArray = function()
+    {
+        function push(id, pass, test, value, against, description)
+        {
+            this.push(
+                {
+                    id: id,
+                    pass: pass,
+                    value: value,
+                    against: against,
+                    description: description
+                }
+            );
+        }
+        var result = [];
+        this.replay(push, result);
+        return result;
+    };
+
+    Messenger.prototype.countPassed = function()
+    {
+        return this.count() - this.countFailed();
+    };
+
+    var comparators =
+    {
+        equals: function(value, against)
+        {
+            return value === against;
+        },
+        lessThan: function(value, against)
+        {
+            return value < against;
+        },
+        moreThan: function(value, against)
+        {
+            return value > against;
+        },
+        exists: function(value)
+        {
+            return value !== undefined;
+        },
+        nulled: function(value)
+        {
+            return value === null;
+        },
+        falsy: function(value)
+        {
+            return !value;
+        },
+        truthy: function(value)
+        {
+            return !!value;
+        }
+    };
+
+    function Assertion(messenger, value, inverted, description)
+    {
+        description = description || "";
+
+        function expose(id, comparator)
+        {
+            return function(against)
+            {
+                var pass = !!comparator(value, against);
+                if(inverted)
+                {
+                    pass = !pass;
+                    id = "not " + id;
+                }
+                messenger.report(id, pass, value, against, description);
+            };
+        }
+
+        for(var id in comparators)
+            if(comparators.hasOwnProperty(id))
+                this[id] = expose(id, comparators[id]);
+    }
+
+    // need to beef this up
+    function clone(value)
+    {
+        return value;
+    }
+
+    function pre(body, specifications)
+    {
+        return function()
+        {
+            var args = [],
+                messenger = new Messenger("precondition"),
+                wrapper =
+            {
+                enforce: function(description, value)
+                {
+                    if(arguments.length === 1)
+                    {
+                        value = description;
+                        description = undefined;
+                    }
+                    var result = new Assertion(messenger, value, false, description);
+                    result.not = new Assertion(messenger, value, true, description);
+                    return result;
+                }
+            };
+
+            for(var i = 0, len = arguments.length;i < len;i++)
+                args[i] = clone(arguments[i]);
+            specifications.apply(this, args);
+            if(messenger.allPassed())
+                body.apply(this, arguments);
+        }
+    }
+
+    this.core = this.core || {};
+
+    this.core.Messenger = Messenger;
+    this.core.Assertion = Assertion;
+
+    this.core.AssertError = AssertError;
+    this.core.PreconditionError = PreconditionError;
+    this.pre = pre;
+}).apply(assertjs);
+
+var messenger = new assertjs.core.Messenger("precondition");
+
+function verify(value, description)
+{
+    var assertion = new assertjs.core.Assertion(messenger, value, false),
+        not = new assertjs.core.Assertion(messenger, value, true);
+    assertion.not = not;
+    not.not = assertion;
+    return assertion;
+}

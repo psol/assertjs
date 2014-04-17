@@ -1,0 +1,52 @@
+<html>
+<head>
+    <title>Assertion tests</title>
+    <script type="text/javascript" src="../src/assertion.js"></script>
+    <script type="text/javascript" src="jquery-2.1.0.min.js"></script>
+    <style type="text/css">
+        .pass {
+            background-color: #adff2f;
+        }
+        .fail {
+            background-color: #ff4500;
+        }
+    </style>
+</head>
+<body>
+    <table id="result"></table>
+    <script type="text/javascript">
+        var tests =
+        [
+            "verify(5).equals(5)",
+            "verify(5).not.equals(5)",
+            "verify(5).not.equals(4)",
+            "verify(5).equals(4)",
+            "verify(5).truthy()",
+            "verify(5).not.falsy()",
+            "verify(5).not.nulled()",
+            "verify(5).exists()",
+        ];
+
+        for(var i = 0;i < tests.length;i++)
+            try
+            {
+                eval(tests[i]);
+            }
+            catch(e)
+            {
+                console.log(e);
+                console.log(e instanceof assertjs.core.AssertError);
+            }
+
+        messenger.replay(function(id, pass, value, against, description, i)
+        {
+            var line = "<tr class='";
+            line += pass ? "pass" : "fail";
+            line += "'><td>" + tests[i] + "</td><td>" + id + "</td><td>" + pass + "</td></tr>";
+            $("#result").append(line);
+        });
+
+        $("#result").append("<tr><td colspan='3'>failed: " + messenger.countFailed() + "</td></tr>");
+    </script>
+</body>
+</html>

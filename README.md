@@ -1,4 +1,4 @@
-# assertjs
+# assert.js
 ## Assertion and test framework in JavaScript
 
 assert.js helps to industrialize JavaScript projects. It focuses on formal (executable) specifications and testing.
